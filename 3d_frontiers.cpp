@@ -20,6 +20,7 @@ void NaiveActiveAreaFrontierDetection(const Eigen::Tensor<int, 3> &map_3d){
                 if(map_3d(i, j, k) == 0){
 
                     if(fd.is_Frontier(i, j, k)){
+                        std::cout << "";
                         fd.frontier_map(i, j, k) = true;
                     }
                     // Write Condition to remove Frontiers
@@ -62,9 +63,14 @@ void FrontierDetection::FindFrontierGroups(const Eigen::Tensor<bool, 3> &frontie
 }
 
 bool FrontierDetection::is_Frontier(const int &i, const int &j, const int&k){
-    this->neighbours << this->map_3d(i-1, j, k), this->map_3d(i+1, j, k), this->map_3d(i, j-1, k),
-            this->map_3d(i, j+1, k), this->map_3d(i, j, k-1), this->map_3d(i, j, k+1);
-    return (this->neighbours.array() == 1).any();
+    if ((i > 0) && (i < this->dimX-1) &&
+        (j > 0) && (j < this->dimY-1) &&
+        (k > 0) && (k < this->dimZ-1)) {
+        this->neighbours << this->map_3d(i - 1, j, k), this->map_3d(i + 1, j, k), this->map_3d(i, j - 1, k),
+                this->map_3d(i, j + 1, k), this->map_3d(i, j, k - 1), this->map_3d(i, j, k + 1);
+        return (this->neighbours.array() == 1).any();
+    }
+    else return false;
 }
 
 
@@ -115,18 +121,24 @@ int main()
 ////////////////               TEST MAP DEFINITION                   /////////////////
 //////////////////////////////////////////////////////////////////////////////////////
 
-    Eigen::Tensor<int, 3> t_3d(10, 10, 10);
+    Eigen::Tensor<int, 3> t_3d(50, 50, 50);
 
     t_3d = t_3d.constant(0);
     Eigen::array<int, 3> offsets1 = {0, 0, 0};
-    Eigen::array<int, 3> offsets2 = {8, 0, 0};
+    Eigen::array<int, 3> offsets2 = {48, 0, 0};
     Eigen::array<int, 3> offsets3 = {0, 0, 0};
-    Eigen::array<int, 3> offsets4 = {0, 8, 0};
+    Eigen::array<int, 3> offsets4 = {0, 48, 0};
     Eigen::array<int, 3> offsets5 = {2, 2, 0};
-    Eigen::array<int, 3> offsets6 = {2, 2, 9};
-    Eigen::array<int, 3> extents1 = {2, 10, 10};
-    Eigen::array<int, 3> extents2 = {10, 2, 10};
-    Eigen::array<int, 3> extents3 = {6, 6, 1};
+    Eigen::array<int, 3> offsets6 = {2, 2, 49};
+    Eigen::array<int, 3> offsets7 = {25, 25, 1};
+    Eigen::array<int, 3> offsets8 = {2, 2, 20};
+    Eigen::array<int, 3> offsets9 = {2, 2, 30};
+    Eigen::array<int, 3> offsets10 = {2, 2, 40};
+    Eigen::array<int, 3> extents1 = {2, 50, 50};
+    Eigen::array<int, 3> extents2 = {50, 2, 50};
+    Eigen::array<int, 3> extents3 = {46, 46, 1};
+    Eigen::array<int, 3> extents4 = {20, 20, 5};
+
 
     Eigen::Tensor<int, 3> slice1 = t_3d.slice(offsets1, extents1).setConstant(2);
     Eigen::Tensor<int, 3> slice2 = t_3d.slice(offsets2, extents1).setConstant(2);
@@ -135,12 +147,15 @@ int main()
 
     Eigen::Tensor<int, 3> slice5 = t_3d.slice(offsets5, extents3).setConstant(1);
     Eigen::Tensor<int, 3> slice6 = t_3d.slice(offsets6, extents3).setConstant(1);
+    Eigen::Tensor<int, 3> slice7 = t_3d.slice(offsets7, extents4).setConstant(1);
+    Eigen::Tensor<int, 3> slice8 = t_3d.slice(offsets8, extents3).setConstant(1);
+    Eigen::Tensor<int, 3> slice9 = t_3d.slice(offsets9, extents3).setConstant(1);
 
     // 3D Map pointed by TensorMap
-    Eigen::TensorMap<Eigen::Tensor<int, 3>> map_3d(t_3d.data(), 10, 10, 10);
+    Eigen::TensorMap<Eigen::Tensor<int, 3>> map_3d(t_3d.data(), 50, 50, 50);
 
     Eigen::array<int, 3> offsets = {0, 0, 0};
-    Eigen::array<int, 3> extents = {10, 10, 10};
+    Eigen::array<int, 3> extents = {50, 50, 50};
     Eigen::Tensor<int, 3> map = map_3d.slice(offsets, extents);
 ///////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////

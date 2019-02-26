@@ -1,3 +1,6 @@
+// Yash Trikannad
+// For Pluto (DARPA SubT Challenge UPenn)
+
 #pragma once
 #include <queue>
 
@@ -13,7 +16,7 @@ private:
     int dimY;
     int dimZ;
     Eigen::Tensor<int, 3> map_3d;
-    Eigen::Matrix<int, 6, 1> neighbours;
+    Eigen::Matrix<double, 6, 1> neighbours;
     double groupx_mean;
     double groupy_mean;
     double groupz_mean;
