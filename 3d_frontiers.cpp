@@ -1,17 +1,65 @@
 // Yash Trikannad
 // For Pluto (DARPA SubT Challenge UPenn)
+// Function to Find the Frontiers
+// Adds to Queue all new centroids of frontiers
 
 #include <iostream>
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
 #include "3d_frontiers.h"
+#include <chrono>
 
-// Function to Find the Frontiers
-// Adds to Queue all new centroids of frontiers
+class FrontierDetection{
 
-void NaiveActiveAreaFrontierDetection(const Eigen::Tensor<int, 3> &map_3d){
+private:
+    int dimX;
+    int dimY;
+    int dimZ;
+    Eigen::Tensor<int8_t , 3> map_3d;
+    Eigen::Matrix<double, 26, 1> neighbours;
+    double groupx_mean;
+    double groupy_mean;
+    double groupz_mean;
+    double group_count;
+
+public:
+    Eigen::Tensor<bool, 3> frontier_map;
+    Eigen::Tensor<int, 3> group_map;
+    std::vector<meanF> frontier_centroids;
+    Eigen::Tensor<bool, 3> visited;
+
+    // Constructor
+    explicit FrontierDetection(const Eigen::Tensor<int8_t , 3> &map_In): map_3d(map_In)
+    {
+        Eigen::Tensor<int8_t , 3>::Dimensions dims = map_3d.dimensions();
+        dimX = int(dims[0]);
+        dimY = int(dims[1]);
+        dimZ = int(dims[2]);
+        visited = Eigen::Tensor<bool, 3>(dimX,dimY,dimZ);
+        visited.setConstant(false);
+        frontier_map = Eigen::Tensor<bool, 3>(dimX,dimY,dimZ);
+        frontier_map.setConstant(false);
+        group_map = Eigen::Tensor<int, 3>(dimX,dimY,dimZ);
+        group_map.setConstant(0);
+        neighbours.setZero();
+        visited.setConstant(false);
+        groupx_mean = 0;
+        groupy_mean = 0;
+        groupz_mean = 0;
+        group_count = 0;
+    };
+
+    bool is_Frontier(const int &i, const int &j, const int&k);
+    int isSafe(const Eigen::Tensor<bool, 3> &,const int &,const int &,const int &);
+    void DFS(const Eigen::Tensor<bool, 3> &, const int &, const int &, const int &);
+    void FindFrontierGroups(const Eigen::Tensor<bool, 3> &);
+    void resetPrevious();
+
+};
+
+std::vector<meanF> NaiveActiveAreaFrontierDetection(const Eigen::Tensor<int8_t, 3> &map_3d){
     FrontierDetection fd(map_3d);
-    Eigen::Tensor<int, 3>::Dimensions dims = map_3d.dimensions();
+    Eigen::Tensor<int8_t , 3>::Dimensions dims = map_3d.dimensions();
 
     for (int i = 0; i < dims[0]; i++){
         for (int j = 0; j < dims[1]; j++){
@@ -20,7 +68,6 @@ void NaiveActiveAreaFrontierDetection(const Eigen::Tensor<int, 3> &map_3d){
                 if(map_3d(i, j, k) == 0){
 
                     if(fd.is_Frontier(i, j, k)){
-                        std::cout << "";
                         fd.frontier_map(i, j, k) = true;
                     }
                     // Write Condition to remove Frontiers
@@ -36,6 +83,7 @@ void NaiveActiveAreaFrontierDetection(const Eigen::Tensor<int, 3> &map_3d){
     fd.FindFrontierGroups(fd.frontier_map);
 //    std::cout << fd.frontier_map << std::endl;
 //    std::cout << map_3d;
+    return fd.frontier_centroids;
 }
 
 
@@ -57,7 +105,7 @@ void FrontierDetection::FindFrontierGroups(const Eigen::Tensor<bool, 3> &frontie
                     mean.x = this->groupx_mean/this->group_count;
                     mean.y = this->groupy_mean/this->group_count;
                     mean.z = this->groupz_mean/this->group_count;
-                    this->frontier_queue.push(mean);
+                    this->frontier_centroids.push_back(mean);
                     std::cout << "Row: " <<mean.x << " Column: " << mean.y << " Depth: " << mean.z <<std::endl;
                 }
 }
@@ -66,9 +114,15 @@ bool FrontierDetection::is_Frontier(const int &i, const int &j, const int&k){
     if ((i > 0) && (i < this->dimX-1) &&
         (j > 0) && (j < this->dimY-1) &&
         (k > 0) && (k < this->dimZ-1)) {
-        this->neighbours << this->map_3d(i - 1, j, k), this->map_3d(i + 1, j, k), this->map_3d(i, j - 1, k),
-                this->map_3d(i, j + 1, k), this->map_3d(i, j, k - 1), this->map_3d(i, j, k + 1);
-        return (this->neighbours.array() == 1).any();
+        this->neighbours << this->map_3d(i-1, j-1, k), this->map_3d(i+1 , j-1, k), this->map_3d(i-1, j , k),
+            this->map_3d(i+1, j , k), this->map_3d(i-1, j+1, k ), this->map_3d(i+1, j+1, k ), this->map_3d(i , j-1, k),
+            this->map_3d(i , j+1, k), this->map_3d(i-1, j-1, k-1), this->map_3d(i+1 , j-1, k-1), this->map_3d(i-1, j , k-1),
+            this->map_3d(i+1, j , k-1), this->map_3d(i-1, j+1, k-1 ), this->map_3d(i+1, j+1, k-1 ), this->map_3d(i , j-1, k-1),
+            this->map_3d(i , j+1, k-1), this->map_3d(i-1, j-1, k+1), this->map_3d(i+1 , j-1, k+1), this->map_3d(i-1, j , k+1),
+            this->map_3d(i+1, j , k+1), this->map_3d(i-1, j+1, k+1 ), this->map_3d(i+1, j+1, k+1 ), this->map_3d(i , j-1, k),
+            this->map_3d(i , j+1, k+1) ,this->map_3d(i , j, k+1), this->map_3d(i, j , k-1);
+        return (this->neighbours.array() == 100).any();
+
     }
     else return false;
 }
@@ -121,7 +175,7 @@ int main()
 ////////////////               TEST MAP DEFINITION                   /////////////////
 //////////////////////////////////////////////////////////////////////////////////////
 
-    Eigen::Tensor<int, 3> t_3d(50, 50, 50);
+    Eigen::Tensor<int8_t , 3> t_3d(80, 80, 80);
 
     t_3d = t_3d.constant(0);
     Eigen::array<int, 3> offsets1 = {0, 0, 0};
@@ -138,29 +192,40 @@ int main()
     Eigen::array<int, 3> extents2 = {50, 2, 50};
     Eigen::array<int, 3> extents3 = {46, 46, 1};
     Eigen::array<int, 3> extents4 = {20, 20, 5};
-
-
-    Eigen::Tensor<int, 3> slice1 = t_3d.slice(offsets1, extents1).setConstant(2);
-    Eigen::Tensor<int, 3> slice2 = t_3d.slice(offsets2, extents1).setConstant(2);
-    Eigen::Tensor<int, 3> slice3 = t_3d.slice(offsets3, extents2).setConstant(2);
-    Eigen::Tensor<int, 3> slice4 = t_3d.slice(offsets4, extents2).setConstant(2);
-
-    Eigen::Tensor<int, 3> slice5 = t_3d.slice(offsets5, extents3).setConstant(1);
-    Eigen::Tensor<int, 3> slice6 = t_3d.slice(offsets6, extents3).setConstant(1);
-    Eigen::Tensor<int, 3> slice7 = t_3d.slice(offsets7, extents4).setConstant(1);
-    Eigen::Tensor<int, 3> slice8 = t_3d.slice(offsets8, extents3).setConstant(1);
-    Eigen::Tensor<int, 3> slice9 = t_3d.slice(offsets9, extents3).setConstant(1);
-
-    // 3D Map pointed by TensorMap
-    Eigen::TensorMap<Eigen::Tensor<int, 3>> map_3d(t_3d.data(), 50, 50, 50);
-
+//
+//
+    Eigen::Tensor<int8_t , 3> slice1 = t_3d.slice(offsets1, extents1).setConstant(2);
+    Eigen::Tensor<int8_t , 3> slice2 = t_3d.slice(offsets2, extents1).setConstant(2);
+    Eigen::Tensor<int8_t , 3> slice3 = t_3d.slice(offsets3, extents2).setConstant(2);
+    Eigen::Tensor<int8_t , 3> slice4 = t_3d.slice(offsets4, extents2).setConstant(2);
+//
+    Eigen::Tensor<int8_t , 3> slice5 = t_3d.slice(offsets5, extents3).setConstant(100);
+    Eigen::Tensor<int8_t , 3> slice6 = t_3d.slice(offsets6, extents3).setConstant(100);
+    Eigen::Tensor<int8_t , 3> slice7 = t_3d.slice(offsets7, extents4).setConstant(100);
+    Eigen::Tensor<int8_t , 3> slice8 = t_3d.slice(offsets8, extents3).setConstant(100);
+    Eigen::Tensor<int8_t , 3> slice9 = t_3d.slice(offsets9, extents3).setConstant(100);
+//
+//    // 3D Map pointed by TensorMap
+    Eigen::TensorMap<Eigen::Tensor<int8_t , 3>> map_3d(t_3d.data(), 80, 80, 80);
+//
     Eigen::array<int, 3> offsets = {0, 0, 0};
-    Eigen::array<int, 3> extents = {50, 50, 50};
-    Eigen::Tensor<int, 3> map = map_3d.slice(offsets, extents);
-///////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////
-    NaiveActiveAreaFrontierDetection(map);
+    Eigen::array<int, 3> extents = {80, 80, 80};
+    Eigen::Tensor<int8_t , 3> map = map_3d.slice(offsets, extents);
+/////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
+
+    std::vector<meanF> frontiers;
+
+    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+    frontiers = NaiveActiveAreaFrontierDetection(map);
+    std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count();
+
+    std::cout << duration;
+    return 0;
 
 }
+
+
 
 
